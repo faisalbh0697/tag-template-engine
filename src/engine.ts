@@ -1,4 +1,4 @@
-import type { EngineConfig, JsonValue, RenderResult } from "@/lib/types"
+import type { EngineConfig, JsonValue, RenderResult } from "./types"
 
 type Token =
   | { type: "text"; value: string }
@@ -28,6 +28,12 @@ const HTML_ESCAPE: Record<string, string> = {
   ">": "&gt;",
   '"': "&quot;",
   "'": "&#39;",
+}
+
+export const JSON_ENGINE_CONFIG: EngineConfig = {
+  version: 3,
+  delimiters: { open: "{{", close: "}}" },
+  autoEscape: false,
 }
 
 export function escapeHtml(value: string): string {
@@ -270,11 +276,7 @@ function parse(tokens: Token[]): AstNode[] {
   return root
 }
 
-function renderNodes(
-  nodes: AstNode[],
-  stack: Frame[],
-  config: EngineConfig
-): string {
+function renderNodes(nodes: AstNode[], stack: Frame[], config: EngineConfig): string {
   let output = ""
 
   for (const node of nodes) {
@@ -299,7 +301,7 @@ function renderNodes(
       continue
     }
     collection.forEach((item, index) => {
-      const nextStack = [
+      output += renderNodes(node.body, [
         ...stack,
         {
           value: item,
@@ -307,8 +309,7 @@ function renderNodes(
           first: index === 0,
           last: index === collection.length - 1,
         },
-      ]
-      output += renderNodes(node.body, nextStack, config)
+      ], config)
     })
   }
 
@@ -318,7 +319,7 @@ function renderNodes(
 export function renderTemplate(
   source: string,
   data: Record<string, JsonValue | unknown>,
-  config: EngineConfig
+  config: EngineConfig = JSON_ENGINE_CONFIG
 ): RenderResult {
   try {
     const tokens = tokenize(source, config.delimiters.open, config.delimiters.close)

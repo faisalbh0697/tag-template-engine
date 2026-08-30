@@ -2,40 +2,99 @@
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/faisalbhxyz/tag-template-engine)
 
-Browser-first engine for authoring HTML tag templates — SEO meta, Open Graph, Twitter cards, JSON-LD, and custom snippets. **v3 auto-initializes engine config and starter templates in the browser. No terminal, no `npx init`.**
+**Just click Deploy to Cloudflare, set your secrets, and it works.**
+
+v3 ships with built-in conversion templates for Meta, TikTok, Google Ads, Klaviyo, and Pinterest. Configs auto-init from code. **No terminal, no `wrangler kv`, no Queue setup required.**
+
+**Optional:** add a KV namespace and a Queue later if you want the admin API and automatic retries.
 
 Repository: [github.com/faisalbhxyz/tag-template-engine](https://github.com/faisalbhxyz/tag-template-engine)
 
+---
+
 ## What it does
 
-- Live playground: edit a template and JSON data, see rendered tags immediately
-- Mustache-style syntax: `{{path}}`, `{{#if}}`, `{{#each}}`, comments, triple-brace raw HTML
-- Starter library: SEO meta, Open Graph, Twitter, JSON-LD LocalBusiness, product HTML
-- Workspace stays in `localStorage` (`tag-template-engine:v3`)
-- Export / import `tag-engine.config.json`
+`POST /event` takes a generic conversion payload, renders each enabled platform template, and forwards the request.
 
-## Template syntax
+| Mode | Bindings | Behavior |
+| --- | --- | --- |
+| `minimal` | none | Built-in configs. Failures are logged. No admin API. |
+| `partial` | KV only | Admin API + live config edits. No retry queue. |
+| `full` | KV + Queue | Admin API + retries. |
 
+---
+
+## 1. Create the GitHub repo
+
+1. Open **[github.com/new](https://github.com/new)**
+2. Owner: **`faisalbhxyz`**
+3. Repository name: **`tag-template-engine`**
+4. Visibility: **Public** (needed for the Deploy to Cloudflare button)
+5. Leave README / .gitignore / license **unchecked**
+6. Click **Create repository**
+
+Then push this project:
+
+```bash
+git remote add github https://github.com/faisalbhxyz/tag-template-engine.git
+git branch -M main
+git push -u github main
 ```
-<title>{{seo.title}}</title>
-{{#if seo.noIndex}}
-<meta name="robots" content="noindex" />
-{{else}}
-<meta name="robots" content="index,follow" />
-{{/if}}
-{{#each og.images}}
-<meta property="og:image" content="{{url}}" />
-{{/each}}
+
+If `github` already exists:
+
+```bash
+git remote set-url github https://github.com/faisalbhxyz/tag-template-engine.git
+git push -u github main
 ```
 
-See `/docs` in the app for the full syntax.
+---
 
-## Requirements
+## 2. Deploy
 
-- Node.js 22+
-- npm 10+
+### One click
 
-## Run locally
+Use the **Deploy to Cloudflare** button at the top. Cloudflare clones this repo, reads `wrangler.jsonc`, and publishes a Worker **with zero bindings**.
+
+Then in the Cloudflare dashboard → Worker → Settings → Variables:
+
+| Secret | Used by |
+| --- | --- |
+| `FB_ACCESS_TOKEN` | Meta CAPI |
+| `FB_PIXEL_ID` | Meta CAPI |
+| `TIKTOK_ACCESS_TOKEN` | TikTok |
+| `TIKTOK_PIXEL_CODE` | TikTok |
+| `GOOGLE_ADS_DEVELOPER_TOKEN` | Google Ads |
+| `GOOGLE_ADS_OAUTH_TOKEN` | Google Ads |
+| `GOOGLE_ADS_CUSTOMER_ID` | Google Ads |
+| `GOOGLE_ADS_CONVERSION_ACTION_ID` | Google Ads |
+| `KLAVIYO_API_KEY` | Klaviyo |
+| `KLAVIYO_PUBLIC_KEY` | Klaviyo |
+| `PINTEREST_ACCESS_TOKEN` | Pinterest |
+| `PINTEREST_AD_ACCOUNT_ID` | Pinterest |
+
+Only set the platforms you use. Missing secrets skip that platform’s usefulness but **never crash the Worker**.
+
+### CLI
+
+```bash
+npx wrangler login
+npm install
+npm run deploy
+```
+
+### Optional KV + Queue
+
+Uncomment the `kv_namespaces` and `queues` blocks in `wrangler.jsonc`, create the resources in Cloudflare, paste the IDs, and redeploy.
+
+- **KV (`CONFIG`)** — admin API (`/admin/configs`, `/admin/config`, `/admin/toggle`, `/admin/reset`) and live template edits
+- **Queue (`RETRY_QUEUE`)** — retry failed platform calls
+
+Without them the Worker stays in `minimal` mode and still sends events from `BUILTIN_CONFIGS`.
+
+---
+
+## 3. Run locally
 
 ```bash
 git clone https://github.com/faisalbhxyz/tag-template-engine.git
@@ -45,66 +104,62 @@ cp .dev.vars.example .dev.vars
 npm run dev
 ```
 
-Open [http://127.0.0.1:43181](http://127.0.0.1:43181). The first visit writes default config and five starter templates into the browser. No CLI step.
+Open [http://127.0.0.1:43181](http://127.0.0.1:43181)
 
 | Script | Purpose |
 | --- | --- |
-| `npm run dev` | Next.js dev server on port 43181 |
-| `npm run preview` | Build and preview in the Cloudflare Workers runtime |
-| `npm run deploy` | Build and deploy to your Cloudflare account |
-| `npm run lint` | ESLint |
-| `npm run typecheck` | TypeScript (`tsc --noEmit`) |
-| `npm test` | Engine unit tests |
-| `npm run build` | Production Next.js build |
+| `npm run dev` | Wrangler dev server on port 43181 |
+| `npm test` | Template + config unit tests |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run deploy` | Publish the Worker |
 
-## Create the GitHub repository
+---
 
-If the repo does not exist yet:
+## API
 
-1. Open [github.com/new](https://github.com/new)
-2. Repository name: `tag-template-engine`
-3. Public (required for the Deploy to Cloudflare button)
-4. Do **not** add a README, `.gitignore`, or license (this project already has them)
-5. Create repository
+### `GET /health`
 
-Then from this project:
-
-```bash
-git remote add github https://github.com/faisalbhxyz/tag-template-engine.git
-git push -u github main
+```json
+{
+  "ok": true,
+  "mode": "minimal",
+  "kv_bound": false,
+  "queue_bound": false,
+  "platforms": ["facebook", "tiktok", "google_ads", "klaviyo", "pinterest"],
+  "secrets_configured": { "FB_ACCESS_TOKEN": false }
+}
 ```
 
-If `github` is already configured:
+### `POST /event`
 
 ```bash
-git remote set-url github https://github.com/faisalbhxyz/tag-template-engine.git
-git push -u github main
+curl -X POST http://127.0.0.1:43181/event \
+  -H 'content-type: application/json' \
+  -d '{
+    "event_name": "Purchase",
+    "email": "buyer@example.com",
+    "value": 149,
+    "currency": "USD"
+  }'
 ```
 
-## Deploy to Cloudflare
+### Admin (KV required)
 
-**One click:** use the button at the top of this README. Cloudflare clones [faisalbhxyz/tag-template-engine](https://github.com/faisalbhxyz/tag-template-engine), reads `wrangler.jsonc`, and deploys a Worker.
+If KV is not bound, every admin route returns:
 
-The button only works after the GitHub repo exists **and is public**.
-
-**From the CLI** (after `npx wrangler login`):
-
-```bash
-npm run deploy
+```json
+{ "error": "KV namespace not bound. Admin API requires KV." }
 ```
 
-This runs OpenNext (`@opennextjs/cloudflare`) then Wrangler. Config lives in `wrangler.jsonc` and `open-next.config.ts`.
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/admin/configs` | List templates |
+| `GET` | `/admin/config?name=facebook` | Read one |
+| `POST` | `/admin/config` | `{ "name", "config" }` upsert |
+| `POST` | `/admin/toggle` | `{ "name", "enabled?" }` |
+| `POST` | `/admin/reset` | Restore built-in templates |
 
-Optional production URL (rebuild after changing it):
-
-```bash
-# .env.local — not committed
-NEXT_PUBLIC_SITE_URL=https://tag-template-engine.faisalbhxyz.workers.dev
-```
-
-## Stack
-
-Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4, shadcn/ui, Cloudflare Workers via OpenNext.
+---
 
 ## License
 

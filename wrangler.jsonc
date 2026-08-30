@@ -1,17 +1,18 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "tag-template-engine",
-  "main": ".open-next/worker.js",
+  "main": "src/index.ts",
   "compatibility_date": "2025-10-08",
-  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
-  "assets": {
-    "directory": ".open-next/assets",
-    "binding": "ASSETS"
-  },
-  "services": [
-    {
-      "binding": "WORKER_SELF_REFERENCE",
-      "service": "tag-template-engine"
-    }
-  ]
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true }
+
+  // Optional — uncomment after creating resources in the Cloudflare dashboard.
+  // kv_namespaces: [{ binding: "CONFIG", id: "your-kv-namespace-id" }]
+  //
+  // queues: {
+  //   producers: [{ binding: "RETRY_QUEUE", queue: "tag-template-retry" }],
+  //   consumers: [{ queue: "tag-template-retry", max_batch_size: 10, max_retries: 5 }]
+  // }
+  //
+  // routes: [{ pattern: "tags.example.com/*", zone_name: "example.com" }]
 }
