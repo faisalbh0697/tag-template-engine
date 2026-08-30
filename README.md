@@ -2,11 +2,9 @@
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/faisalbhxyz/tag-template-engine)
 
-**Just click Deploy to Cloudflare, set your secrets, and it works.**
+**Click Deploy to Cloudflare, set your secrets, and it works.**
 
-v3 ships with built-in conversion templates for Meta, TikTok, Google Ads, Klaviyo, and Pinterest. Configs auto-init from code. **No terminal, no `wrangler kv`, no Queue setup required.**
-
-**Optional:** add a KV namespace and a Queue later if you want the admin API and automatic retries.
+Server-side conversion tags for Meta, TikTok, Google Ads, Klaviyo, and Pinterest. Built-in templates auto-init from code. No terminal, no KV, no Queue required.
 
 Repository: [github.com/faisalbhxyz/tag-template-engine](https://github.com/faisalbhxyz/tag-template-engine)
 
@@ -16,6 +14,8 @@ Repository: [github.com/faisalbhxyz/tag-template-engine](https://github.com/fais
 
 `POST /event` takes a generic conversion payload, renders each enabled platform template, and forwards the request.
 
+Empty secrets skip that platform instead of crashing the Worker.
+
 | Mode | Bindings | Behavior |
 | --- | --- | --- |
 | `minimal` | none | Built-in configs. Failures are logged. No admin API. |
@@ -24,66 +24,26 @@ Repository: [github.com/faisalbhxyz/tag-template-engine](https://github.com/fais
 
 ---
 
-## 1. Create the GitHub repo
-
-1. Open **[github.com/new](https://github.com/new)**
-2. Owner: **`faisalbhxyz`**
-3. Repository name: **`tag-template-engine`**
-4. Visibility: **Public** (needed for the Deploy to Cloudflare button)
-5. Leave README / .gitignore / license **unchecked**
-6. Click **Create repository**
-
-Then push this project:
-
-```bash
-git remote add github https://github.com/faisalbhxyz/tag-template-engine.git
-git branch -M main
-git push -u github main
-```
-
-If `github` already exists:
-
-```bash
-git remote set-url github https://github.com/faisalbhxyz/tag-template-engine.git
-git push -u github main
-```
-
----
-
-## Quick Start
-
-**Just click Deploy to Cloudflare, set your secrets, and it works!**
-
-No KV namespace. No Queue. No `wrangler` setup. Built-in configs load automatically.
-
-**Optional: Add KV namespace and Queue for admin API and retry features.**
-
----
-
-## 2. Deploy
+## Deploy
 
 ### One click
 
-**Just click Deploy to Cloudflare, set your secrets, and it works!** Cloudflare clones this repo, reads `wrangler.jsonc`, and publishes a Worker **with zero bindings**.
+Cloudflare clones this repo, reads `wrangler.jsonc`, and publishes a Worker with zero bindings.
 
 Then in the Cloudflare dashboard → Worker → Settings → Variables:
 
-| Secret | Used by |
+| Variable | Used by |
 | --- | --- |
 | `FB_ACCESS_TOKEN` | Meta CAPI |
-| `FB_PIXEL_ID` | Meta CAPI |
 | `TIKTOK_ACCESS_TOKEN` | TikTok |
 | `TIKTOK_PIXEL_CODE` | TikTok |
 | `GOOGLE_ADS_DEVELOPER_TOKEN` | Google Ads |
 | `GOOGLE_ADS_OAUTH_TOKEN` | Google Ads |
-| `GOOGLE_ADS_CUSTOMER_ID` | Google Ads |
-| `GOOGLE_ADS_CONVERSION_ACTION_ID` | Google Ads |
 | `KLAVIYO_API_KEY` | Klaviyo |
 | `KLAVIYO_PUBLIC_KEY` | Klaviyo |
 | `PINTEREST_ACCESS_TOKEN` | Pinterest |
-| `PINTEREST_AD_ACCOUNT_ID` | Pinterest |
 
-Only set the platforms you use. Missing secrets skip that platform’s usefulness but **never crash the Worker**.
+Only set the platforms you use.
 
 ### CLI
 
@@ -95,16 +55,16 @@ npm run deploy
 
 ### Optional KV + Queue
 
-Uncomment the `kv_namespaces` and `queues` blocks in `wrangler.jsonc`, create the resources in Cloudflare, paste the IDs, and redeploy.
+Add a KV namespace binding named `CONFIG` and a Queue binding named `RETRY_QUEUE` in the Cloudflare dashboard if you want the admin API and automatic retries.
 
-- **KV (`CONFIG`)** — admin API (`/admin/configs`, `/admin/config`, `/admin/toggle`, `/admin/reset`) and live template edits
+- **KV (`CONFIG`)** — admin API and live template edits
 - **Queue (`RETRY_QUEUE`)** — retry failed platform calls
 
-Without them the Worker stays in `minimal` mode and still sends events from `BUILTIN_CONFIGS`.
+Without them the Worker stays in `minimal` mode and still sends events from built-in templates.
 
 ---
 
-## 3. Run locally
+## Run locally
 
 ```bash
 git clone https://github.com/faisalbhxyz/tag-template-engine.git
@@ -131,12 +91,14 @@ Open [http://127.0.0.1:43181](http://127.0.0.1:43181)
 
 ```json
 {
-  "ok": true,
+  "status": "ok",
   "mode": "minimal",
   "kv_bound": false,
   "queue_bound": false,
   "platforms": ["facebook", "tiktok", "google_ads", "klaviyo", "pinterest"],
-  "secrets_configured": { "FB_ACCESS_TOKEN": false }
+  "secrets_configured": {
+    "FB_ACCESS_TOKEN": false
+  }
 }
 ```
 
@@ -153,12 +115,16 @@ curl -X POST http://127.0.0.1:43181/event \
   }'
 ```
 
+Empty tokens return `"status": "skipped"` for that platform.
+
 ### Admin (KV required)
 
 If KV is not bound, every admin route returns:
 
 ```json
-{ "error": "KV namespace not bound. Admin API requires KV." }
+{
+  "error": "KV namespace not bound. Add a KV namespace binding named 'CONFIG' to use admin API."
+}
 ```
 
 | Method | Path | Purpose |
