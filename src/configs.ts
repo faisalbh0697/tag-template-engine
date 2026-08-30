@@ -142,19 +142,28 @@ function isPlatformConfig(value: unknown): value is PlatformConfig {
   )
 }
 
+function logKvFailure(action: string, error: unknown) {
+  const message = error instanceof Error ? error.message : "Unknown KV error"
+  console.error(`KV ${action} failed: ${message}`)
+}
+
 export async function ensureConfigs(env: Env): Promise<void> {
   if (!env.CONFIG) {
     return
   }
-  const existing = await env.CONFIG.list({ limit: 1 })
-  if (existing.keys.length > 0) {
-    return
-  }
-  await Promise.all(
-    Object.entries(BUILTIN_CONFIGS).map(([name, config]) =>
-      env.CONFIG!.put(name, JSON.stringify(config))
+  try {
+    const existing = await env.CONFIG.list({ limit: 1 })
+    if (existing.keys.length > 0) {
+      return
+    }
+    await Promise.all(
+      Object.entries(BUILTIN_CONFIGS).map(([name, config]) =>
+        env.CONFIG!.put(name, JSON.stringify(config))
+      )
     )
-  )
+  } catch (error) {
+    logKvFailure("ensureConfigs", error)
+  }
 }
 
 export async function getEnabledPlatforms(
@@ -166,26 +175,40 @@ export async function getEnabledPlatforms(
       .map(([name, config]) => ({ name, config }))
   }
 
-  await ensureConfigs(env)
-  const listed = await env.CONFIG.list()
-  const loaded = await Promise.all(
-    listed.keys.map(async (key) => {
-      const raw = await env.CONFIG!.get(key.name)
-      if (!raw) {
-        return null
-      }
-      try {
-        const parsed: unknown = JSON.parse(raw)
-        if (!isPlatformConfig(parsed) || !parsed.enabled) {
+  try {
+    await ensureConfigs(env)
+    const listed = await env.CONFIG.list()
+    const loaded = await Promise.all(
+      listed.keys.map(async (key) => {
+        try {
+          const raw = await env.CONFIG!.get(key.name)
+          if (!raw) {
+            return null
+          }
+          const parsed: unknown = JSON.parse(raw)
+          if (!isPlatformConfig(parsed) || !parsed.enabled) {
+            return null
+          }
+          return { name: key.name, config: parsed }
+        } catch (error) {
+          logKvFailure(`get ${key.name}`, error)
           return null
         }
-        return { name: key.name, config: parsed }
-      } catch {
-        return null
-      }
-    })
-  )
-  return loaded.filter((item): item is { name: string; config: PlatformConfig } => item !== null)
+      })
+    )
+    const enabled = loaded.filter(
+      (item): item is { name: string; config: PlatformConfig } => item !== null
+    )
+    if (enabled.length > 0) {
+      return enabled
+    }
+  } catch (error) {
+    logKvFailure("getEnabledPlatforms", error)
+  }
+
+  return Object.entries(BUILTIN_CONFIGS)
+    .filter(([, config]) => config.enabled)
+    .map(([name, config]) => ({ name, config }))
 }
 
 export async function listAllConfigs(
@@ -194,24 +217,29 @@ export async function listAllConfigs(
   if (!env.CONFIG) {
     return { ...BUILTIN_CONFIGS }
   }
-  await ensureConfigs(env)
-  const listed = await env.CONFIG.list()
-  const result: Record<string, PlatformConfig> = {}
-  for (const key of listed.keys) {
-    const raw = await env.CONFIG.get(key.name)
-    if (!raw) {
-      continue
-    }
-    try {
-      const parsed: unknown = JSON.parse(raw)
-      if (isPlatformConfig(parsed)) {
-        result[key.name] = parsed
+  try {
+    await ensureConfigs(env)
+    const listed = await env.CONFIG.list()
+    const result: Record<string, PlatformConfig> = {}
+    for (const key of listed.keys) {
+      try {
+        const raw = await env.CONFIG.get(key.name)
+        if (!raw) {
+          continue
+        }
+        const parsed: unknown = JSON.parse(raw)
+        if (isPlatformConfig(parsed)) {
+          result[key.name] = parsed
+        }
+      } catch (error) {
+        logKvFailure(`list ${key.name}`, error)
       }
-    } catch {
-      // skip broken keys
     }
+    return result
+  } catch (error) {
+    logKvFailure("listAllConfigs", error)
+    return { ...BUILTIN_CONFIGS }
   }
-  return result
 }
 
 export const PLATFORM_SECRETS: Record<string, readonly string[]> = {

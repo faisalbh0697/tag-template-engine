@@ -91,11 +91,16 @@ export async function retryOrLog(
   error: string
 ): Promise<void> {
   if (env.RETRY_QUEUE && message.attempt < MAX_ATTEMPTS) {
-    await env.RETRY_QUEUE.send({
-      ...message,
-      attempt: message.attempt + 1,
-    })
-    return
+    try {
+      await env.RETRY_QUEUE.send({
+        ...message,
+        attempt: message.attempt + 1,
+      })
+      return
+    } catch (queueError) {
+      const text = queueError instanceof Error ? queueError.message : "Queue send failed"
+      console.error(`RETRY_QUEUE send failed: ${text}`)
+    }
   }
   console.error(
     JSON.stringify({

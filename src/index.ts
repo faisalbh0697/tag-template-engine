@@ -2,6 +2,7 @@ import {
   BUILTIN_CONFIGS,
   KV_REQUIRED_ERROR,
   collectSecrets,
+  ensureConfigs,
   getEnabledPlatforms,
   healthMode,
   jsonResponse,
@@ -12,6 +13,8 @@ import {
 import { normalizeEvent, retryOrLog, sendToPlatform } from "./dispatch"
 import { landingHtml } from "./landing"
 import type { Env, JsonObject, QueueMessage } from "./types"
+
+export { ensureConfigs, getEnabledPlatforms }
 
 function corsHeaders(): HeadersInit {
   return {
@@ -79,60 +82,66 @@ async function handleAdmin(request: Request, env: Env, path: string): Promise<Re
     return jsonResponse(KV_REQUIRED_ERROR, 501)
   }
 
-  if (path === "/admin/configs" && request.method === "GET") {
-    return jsonResponse(await listAllConfigs(env))
-  }
+  try {
+    if (path === "/admin/configs" && request.method === "GET") {
+      return jsonResponse(await listAllConfigs(env))
+    }
 
-  if (path === "/admin/config" && request.method === "GET") {
-    const name = new URL(request.url).searchParams.get("name")
-    if (!name) {
-      return jsonResponse({ error: "Query param name is required." }, 400)
+    if (path === "/admin/config" && request.method === "GET") {
+      const name = new URL(request.url).searchParams.get("name")
+      if (!name) {
+        return jsonResponse({ error: "Query param name is required." }, 400)
+      }
+      const raw = await env.CONFIG.get(name)
+      if (!raw) {
+        return jsonResponse({ error: "Config not found." }, 404)
+      }
+      return jsonResponse({ name, config: JSON.parse(raw) as JsonObject })
     }
-    const raw = await env.CONFIG.get(name)
-    if (!raw) {
-      return jsonResponse({ error: "Config not found." }, 404)
-    }
-    return jsonResponse({ name, config: JSON.parse(raw) as JsonObject })
-  }
 
-  if (path === "/admin/config" && request.method === "POST") {
-    const body = await readJson(request)
-    const name = typeof body?.name === "string" ? body.name : ""
-    if (!name || typeof body?.config !== "object" || body.config === null) {
-      return jsonResponse({ error: "Body must include name and config." }, 400)
+    if (path === "/admin/config" && request.method === "POST") {
+      const body = await readJson(request)
+      const name = typeof body?.name === "string" ? body.name : ""
+      if (!name || typeof body?.config !== "object" || body.config === null) {
+        return jsonResponse({ error: "Body must include name and config." }, 400)
+      }
+      await env.CONFIG.put(name, JSON.stringify(body.config))
+      return jsonResponse({ ok: true, name })
     }
-    await env.CONFIG.put(name, JSON.stringify(body.config))
-    return jsonResponse({ ok: true, name })
-  }
 
-  if (path === "/admin/toggle" && request.method === "POST") {
-    const body = await readJson(request)
-    const name = typeof body?.name === "string" ? body.name : ""
-    if (!name) {
-      return jsonResponse({ error: "Body must include name." }, 400)
+    if (path === "/admin/toggle" && request.method === "POST") {
+      const body = await readJson(request)
+      const name = typeof body?.name === "string" ? body.name : ""
+      if (!name) {
+        return jsonResponse({ error: "Body must include name." }, 400)
+      }
+      const raw = await env.CONFIG.get(name)
+      if (!raw) {
+        return jsonResponse({ error: "Config not found." }, 404)
+      }
+      const config = JSON.parse(raw) as { enabled: boolean }
+      config.enabled = typeof body?.enabled === "boolean" ? body.enabled : !config.enabled
+      await env.CONFIG.put(name, JSON.stringify(config))
+      return jsonResponse({ ok: true, name, enabled: config.enabled })
     }
-    const raw = await env.CONFIG.get(name)
-    if (!raw) {
-      return jsonResponse({ error: "Config not found." }, 404)
-    }
-    const config = JSON.parse(raw) as { enabled: boolean }
-    config.enabled = typeof body?.enabled === "boolean" ? body.enabled : !config.enabled
-    await env.CONFIG.put(name, JSON.stringify(config))
-    return jsonResponse({ ok: true, name, enabled: config.enabled })
-  }
 
-  if (path === "/admin/reset" && request.method === "POST") {
-    const listed = await env.CONFIG.list()
-    await Promise.all(listed.keys.map((key) => env.CONFIG!.delete(key.name)))
-    await Promise.all(
-      Object.entries(BUILTIN_CONFIGS).map(([name, config]) =>
-        env.CONFIG!.put(name, JSON.stringify(config))
+    if (path === "/admin/reset" && request.method === "POST") {
+      const listed = await env.CONFIG.list()
+      await Promise.all(listed.keys.map((key) => env.CONFIG!.delete(key.name)))
+      await Promise.all(
+        Object.entries(BUILTIN_CONFIGS).map(([name, config]) =>
+          env.CONFIG!.put(name, JSON.stringify(config))
+        )
       )
-    )
-    return jsonResponse({ ok: true, restored: Object.keys(BUILTIN_CONFIGS) })
-  }
+      return jsonResponse({ ok: true, restored: Object.keys(BUILTIN_CONFIGS) })
+    }
 
-  return jsonResponse({ error: "Not found." }, 404)
+    return jsonResponse({ error: "Not found." }, 404)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "KV operation failed"
+    console.error(message)
+    return jsonResponse({ error: message }, 500)
+  }
 }
 
 async function handleHealth(env: Env): Promise<Response> {
@@ -183,11 +192,6 @@ export default {
   async queue(batch: MessageBatch<QueueMessage>, env: Env): Promise<void> {
     for (const message of batch.messages) {
       try {
-        if (!env.CONFIG) {
-          console.error("Queue consumer skipped: KV namespace not bound.")
-          message.ack()
-          continue
-        }
         const platforms = await getEnabledPlatforms(env)
         const match = platforms.find((item) => item.name === message.body.platform)
         if (!match) {

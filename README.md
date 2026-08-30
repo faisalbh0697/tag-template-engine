@@ -50,11 +50,21 @@ git push -u github main
 
 ---
 
+## Quick Start
+
+**Just click Deploy to Cloudflare, set your secrets, and it works!**
+
+No KV namespace. No Queue. No `wrangler` setup. Built-in configs load automatically.
+
+**Optional: Add KV namespace and Queue for admin API and retry features.**
+
+---
+
 ## 2. Deploy
 
 ### One click
 
-Use the **Deploy to Cloudflare** button at the top. Cloudflare clones this repo, reads `wrangler.jsonc`, and publishes a Worker **with zero bindings**.
+**Just click Deploy to Cloudflare, set your secrets, and it works!** Cloudflare clones this repo, reads `wrangler.jsonc`, and publishes a Worker **with zero bindings**.
 
 Then in the Cloudflare dashboard → Worker → Settings → Variables:
 

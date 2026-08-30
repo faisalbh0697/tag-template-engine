@@ -4,15 +4,16 @@
   "main": "src/index.ts",
   "compatibility_date": "2025-10-08",
   "compatibility_flags": ["nodejs_compat"],
-  "observability": { "enabled": true }
-
-  // Optional — uncomment after creating resources in the Cloudflare dashboard.
-  // kv_namespaces: [{ binding: "CONFIG", id: "your-kv-namespace-id" }]
-  //
-  // queues: {
-  //   producers: [{ binding: "RETRY_QUEUE", queue: "tag-template-retry" }],
-  //   consumers: [{ queue: "tag-template-retry", max_batch_size: 10, max_retries: 5 }]
-  // }
-  //
-  // routes: [{ pattern: "tags.example.com/*", zone_name: "example.com" }]
+  "observability": {
+    "enabled": true
+  }
+  // Optional KV — admin API + live template edits
+  // "kv_namespaces": [{ "binding": "CONFIG", "id": "YOUR_KV_NAMESPACE_ID" }],
+  // Optional Queue — retry failed platform calls
+  // "queues": {
+  //   "producers": [{ "binding": "RETRY_QUEUE", "queue": "tag-template-retry" }],
+  //   "consumers": [{ "queue": "tag-template-retry", max_batch_size: 10, max_retries: 5 }]
+  // },
+  // Optional custom domain
+  // "routes": [{ "pattern": "tags.example.com/*", "zone_name": "example.com" }]
 }
