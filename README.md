@@ -1,6 +1,10 @@
 # Tag Template Engine
 
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/faisalbhxyz/tag-template-engine)
+
 Browser-first engine for authoring HTML tag templates — SEO meta, Open Graph, Twitter cards, JSON-LD, and custom snippets. **v3 auto-initializes engine config and starter templates in the browser. No terminal, no `npx init`.**
+
+Repository: [github.com/faisalbhxyz/tag-template-engine](https://github.com/faisalbhxyz/tag-template-engine)
 
 ## What it does
 
@@ -34,7 +38,10 @@ See `/docs` in the app for the full syntax.
 ## Run locally
 
 ```bash
+git clone https://github.com/faisalbhxyz/tag-template-engine.git
+cd tag-template-engine
 npm install
+cp .dev.vars.example .dev.vars
 npm run dev
 ```
 
@@ -42,29 +49,62 @@ Open [http://127.0.0.1:43181](http://127.0.0.1:43181). The first visit writes de
 
 | Script | Purpose |
 | --- | --- |
-| `npm run dev` | Development server on port 43181 |
+| `npm run dev` | Next.js dev server on port 43181 |
+| `npm run preview` | Build and preview in the Cloudflare Workers runtime |
+| `npm run deploy` | Build and deploy to your Cloudflare account |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | TypeScript (`tsc --noEmit`) |
 | `npm test` | Engine unit tests |
-| `npm run build` | Production build |
-| `npm start` | Serve the production build |
+| `npm run build` | Production Next.js build |
 
-## Publish to GitHub
+## Create the GitHub repository
 
-Create an empty repository named `tag-template-engine` at [github.com/new](https://github.com/new), then:
+If the repo does not exist yet:
+
+1. Open [github.com/new](https://github.com/new)
+2. Repository name: `tag-template-engine`
+3. Public (required for the Deploy to Cloudflare button)
+4. Do **not** add a README, `.gitignore`, or license (this project already has them)
+5. Create repository
+
+Then from this project:
 
 ```bash
-git remote add github https://github.com/YOUR_USERNAME/tag-template-engine.git
-git add -A
-git commit -m "v3: auto-init configs, no terminal needed"
+git remote add github https://github.com/faisalbhxyz/tag-template-engine.git
 git push -u github main
 ```
 
-If this checkout already has an `origin` remote, use a second remote name (`github`) or replace `origin` after creating the GitHub repo.
+If `github` is already configured:
+
+```bash
+git remote set-url github https://github.com/faisalbhxyz/tag-template-engine.git
+git push -u github main
+```
+
+## Deploy to Cloudflare
+
+**One click:** use the button at the top of this README. Cloudflare clones [faisalbhxyz/tag-template-engine](https://github.com/faisalbhxyz/tag-template-engine), reads `wrangler.jsonc`, and deploys a Worker.
+
+The button only works after the GitHub repo exists **and is public**.
+
+**From the CLI** (after `npx wrangler login`):
+
+```bash
+npm run deploy
+```
+
+This runs OpenNext (`@opennextjs/cloudflare`) then Wrangler. Config lives in `wrangler.jsonc` and `open-next.config.ts`.
+
+Optional production URL (rebuild after changing it):
+
+```bash
+# .env.local — not committed
+NEXT_PUBLIC_SITE_URL=https://tag-template-engine.faisalbhxyz.workers.dev
+```
 
 ## Stack
 
-Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4, shadcn/ui.
+Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4, shadcn/ui, Cloudflare Workers via OpenNext.
 
 ## License
 

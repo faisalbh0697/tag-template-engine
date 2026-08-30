@@ -1,6 +1,9 @@
 export const SITE_NAME = "Tag Template Engine"
 export const SITE_DESCRIPTION =
   "Browser-first HTML tag templates for meta, Open Graph, Twitter, and JSON-LD. Version 3 auto-initializes configs — no terminal required."
+export const GITHUB_USER = "faisalbhxyz"
+export const GITHUB_REPO = "tag-template-engine"
+export const GITHUB_URL = `https://github.com/${GITHUB_USER}/${GITHUB_REPO}`
 
 export function getSiteUrl(): string {
   return process.env.NEXT_PUBLIC_SITE_URL ?? "http://127.0.0.1:43181"
@@ -23,6 +26,7 @@ export function softwareJsonLd() {
     operatingSystem: "Web",
     description: SITE_DESCRIPTION,
     url: absoluteUrl("/"),
+    codeRepository: GITHUB_URL,
     offers: {
       "@type": "Offer",
       price: "0",
